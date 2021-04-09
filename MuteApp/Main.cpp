@@ -25,9 +25,11 @@ using namespace std::literals;
 namespace {
   constexpr std::size_t PathBufferSize = 65600;
   constexpr std::size_t MenuPathLength = 32;
-  constexpr auto ClassName = L"MuteApp";
   constexpr auto MutexName = L"MuteAppMutex";
-  constexpr auto WindowName = L"MuteApp";
+  constexpr auto ClassNameMain = L"MuteApp";
+  constexpr auto ClassNameIndicator = L"MuteAppIndicator";
+  constexpr auto WindowNameMain = L"MuteApp";
+  constexpr auto WindowNameIndicator = L"MuteApp";
   constexpr UINT NotifyIconId = 0x0001;
   constexpr UINT NotifyIconCallbackMessageId = WM_APP + 0x1101;
   constexpr UINT HotKeyId = 0x0001;
@@ -40,6 +42,7 @@ namespace {
   HICON gHIcon = NULL;
   HICON gHIconDisabled = NULL;
   UINT gTimerEventId = 0;
+  HWND gHWndIndicator = NULL;
   bool gMuted = false;
 
   std::wstring GetModuleFilepath(HMODULE hModule) {
@@ -55,10 +58,10 @@ namespace {
   }
 } // namespace
 
-LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   if (gTaskbarCreatedMessage != 0 && uMsg == gTaskbarCreatedMessage) {
-    // use if statement because gTaskbarCreatedMessage is not a constexpr
-    // NOTE: To receive "TaskbarCreated" message, the window must be a top level window. A message-only window will not receive the message.
+    // not including in switch block because gTaskbarCreatedMessage is not a constexpr
+    // NOTE: To receive "TaskbarCreated" message, the window must be a top level window. A message-only window cannot receive this message.
     if (gNotifyIcon) {
       if (!gNotifyIcon.value().Register()) {
         const std::wstring message =
@@ -95,8 +98,10 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         break;
       }
 
+      bool muted;
       try {
-        gMuted = !ToggleMuteByProcessId(pid);
+        muted = !ToggleMuteByProcessId(pid);
+        gMuted = muted;
       } catch (...) {
         MessageBeep(MB_OK);
         break;
@@ -120,7 +125,9 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
       const auto dpi = GetDpiForWindow(hWnd);
 
       const long size = baseSize * dpi / 96;
-      SetWindowPos(hWnd, NULL, cx - size / 2, cy - size / 2, size, size, SWP_SHOWWINDOW | SWP_NOACTIVATE);
+      SetWindowPos(gHWndIndicator, NULL, cx - size / 2, cy - size / 2, size, size, SWP_SHOWWINDOW | SWP_NOACTIVATE);
+      InvalidateRect(gHWndIndicator, NULL, FALSE);
+      UpdateWindow(gHWndIndicator);
 
       SetTimer(hWnd, TimerId, duration, NULL);
 
@@ -132,57 +139,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         break;
       }
 
-      ShowWindow(hWnd, SW_HIDE);
-
-      break;
-    }
-
-    case WM_PAINT: {
-      winrt::Windows::UI::ViewManagement::UISettings settings;
-      const auto background = settings.GetColorValue(winrt::Windows::UI::ViewManagement::UIColorType::Background);
-      const auto foreground = settings.GetColorValue(winrt::Windows::UI::ViewManagement::UIColorType::Foreground);
-
-      RECT rect{};
-      GetClientRect(hWnd, &rect);
-
-      // assume right == bottom
-      const LONG size = rect.right;
-
-      PAINTSTRUCT ps{};
-      const auto hDC = BeginPaint(hWnd, &ps);
-
-      SetBkColor(hDC, RGB(background.R, background.G, background.B));
-      SetTextColor(hDC, RGB(foreground.R, foreground.G, foreground.B));
-
-      const auto hBrushBG = CreateSolidBrush(RGB(background.R, background.G, background.B));
-      FillRect(hDC, &rect, hBrushBG);
-      DeleteObject(hBrushBG);
-
-      const auto hFont = CreateFontW(size / 2,
-                                     0,
-                                     0,
-                                     0,
-                                     FW_DONTCARE,
-                                     FALSE,
-                                     FALSE,
-                                     FALSE,
-                                     DEFAULT_CHARSET,
-                                     OUT_OUTLINE_PRECIS,
-                                     CLIP_DEFAULT_PRECIS,
-                                     CLEARTYPE_QUALITY,
-                                     DEFAULT_PITCH,
-                                     L"Segoe MDL2 Assets");
-      const auto hOldFont = SelectObject(hDC, hFont);
-
-      RECT textRect{ size / 4, size / 4, size * 3 / 4, size * 3 / 4 };
-      wchar_t text[2]{};
-      text[0] = gMuted ? L'\uE74F' : L'\uE767';
-      DrawTextExW(hDC, text, 1, &textRect, DT_CENTER | DT_VCENTER, NULL);
-
-      SelectObject(hDC, hOldFont);
-      DeleteObject(hFont);
-
-      EndPaint(hWnd, &ps);
+      ShowWindow(gHWndIndicator, SW_HIDE);
 
       break;
     }
@@ -256,6 +213,74 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
   return DefWindowProcW(hWnd, uMsg, wParam, lParam);
 }
 
+LRESULT CALLBACK IndicatorWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+  switch (uMsg) {
+    case WM_CREATE: {
+      SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+      break;
+    }
+
+    case WM_PAINT: {
+      winrt::Windows::UI::ViewManagement::UISettings settings;
+      const auto background = settings.GetColorValue(winrt::Windows::UI::ViewManagement::UIColorType::Background);
+      const auto foreground = settings.GetColorValue(winrt::Windows::UI::ViewManagement::UIColorType::Foreground);
+
+      RECT rect{};
+      GetClientRect(hWnd, &rect);
+
+      // assume right == bottom
+      const LONG size = rect.right;
+
+      PAINTSTRUCT ps{};
+      const auto hDC = BeginPaint(hWnd, &ps);
+
+      SetBkColor(hDC, RGB(background.R, background.G, background.B));
+      SetTextColor(hDC, RGB(foreground.R, foreground.G, foreground.B));
+
+      const auto hBrushBG = CreateSolidBrush(RGB(background.R, background.G, background.B));
+      FillRect(hDC, &rect, hBrushBG);
+      DeleteObject(hBrushBG);
+
+      const auto hFont = CreateFontW(size / 2,
+                                     0,
+                                     0,
+                                     0,
+                                     FW_DONTCARE,
+                                     FALSE,
+                                     FALSE,
+                                     FALSE,
+                                     DEFAULT_CHARSET,
+                                     OUT_OUTLINE_PRECIS,
+                                     CLIP_DEFAULT_PRECIS,
+                                     CLEARTYPE_QUALITY,
+                                     DEFAULT_PITCH,
+                                     L"Segoe MDL2 Assets");
+      const auto hOldFont = SelectObject(hDC, hFont);
+
+      RECT textRect{ size / 4, size / 4, size * 3 / 4, size * 3 / 4 };
+      wchar_t text[2]{};
+      text[0] = gMuted ? L'\uE74F' : L'\uE767';
+      DrawTextExW(hDC, text, 1, &textRect, DT_CENTER | DT_VCENTER, NULL);
+
+      SelectObject(hDC, hOldFont);
+      DeleteObject(hFont);
+
+      EndPaint(hWnd, &ps);
+
+      break;
+    }
+
+    // on exit
+    case WM_CLOSE:
+      return 0;
+
+    case WM_DESTROY:
+      return 0;
+  }
+
+  return DefWindowProcW(hWnd, uMsg, wParam, lParam);
+}
+
 int WINAPI wWinMain(HINSTANCE hInstance,
                     [[maybe_unused]] HINSTANCE hPrevInstance,
                     [[maybe_unused]] LPWSTR lpCmdLine,
@@ -307,11 +332,11 @@ int WINAPI wWinMain(HINSTANCE hInstance,
     return 1;
   }
 
-  // register window class
-  const WNDCLASSEXW wndClassExW{
-    sizeof(wndClassExW),
+  // register window class (main)
+  const WNDCLASSEXW wndClassExWMain{
+    sizeof(wndClassExWMain),
     CS_HREDRAW | CS_VREDRAW | CS_NOCLOSE,
-    WindowProc,
+    MainWindowProc,
     0,
     0,
     hInstance,
@@ -319,31 +344,75 @@ int WINAPI wWinMain(HINSTANCE hInstance,
     LoadCursorW(NULL, IDC_ARROW),
     reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)),
     NULL,
-    ClassName,
+    ClassNameMain,
     gHIcon,
   };
-  if (!RegisterClassExW(&wndClassExW)) {
+  if (!RegisterClassExW(&wndClassExWMain)) {
     const std::wstring message =
       L"Initialization error: RegisterClassExW failed with code "s + std::to_wstring(GetLastError());
     MessageBoxW(NULL, message.c_str(), L"MuteApp", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
     return 1;
   }
 
-  // create window
-  // this must be done before checking multiple instance because a window is needed to send a message
-  HWND hWnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
-                              ClassName,
-                              WindowName,
-                              WS_POPUP | WS_VISIBLE,
-                              CW_USEDEFAULT,
-                              CW_USEDEFAULT,
-                              CW_USEDEFAULT,
-                              CW_USEDEFAULT,
-                              NULL,
-                              NULL,
-                              hInstance,
-                              NULL);
-  if (hWnd == NULL) {
+  // register window class (indicator)
+  const WNDCLASSEXW wndClassExWIndicator{
+    sizeof(wndClassExWIndicator),
+    CS_HREDRAW | CS_VREDRAW | CS_NOCLOSE,
+    IndicatorWindowProc,
+    0,
+    0,
+    hInstance,
+    gHIcon,
+    LoadCursorW(NULL, IDC_ARROW),
+    reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)),
+    NULL,
+    ClassNameIndicator,
+    gHIcon,
+  };
+  if (!RegisterClassExW(&wndClassExWIndicator)) {
+    const std::wstring message =
+      L"Initialization error: RegisterClassExW failed with code "s + std::to_wstring(GetLastError());
+    MessageBoxW(NULL, message.c_str(), L"MuteApp", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+    return 1;
+  }
+
+  // create indicator window
+  gHWndIndicator = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
+                                   ClassNameIndicator,
+                                   WindowNameIndicator,
+                                   WS_POPUP,
+                                   CW_USEDEFAULT,
+                                   CW_USEDEFAULT,
+                                   CW_USEDEFAULT,
+                                   CW_USEDEFAULT,
+                                   NULL,
+                                   NULL,
+                                   hInstance,
+                                   NULL);
+  if (gHWndIndicator == NULL) {
+    const std::wstring message =
+      L"Initialization error: CreateWindowExW failed with code "s + std::to_wstring(GetLastError());
+    MessageBoxW(NULL, message.c_str(), L"MuteApp", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+    return 1;
+  }
+
+  const auto transparency = static_cast<BYTE>(std::clamp(configFile.GetInt(L"indicatorTransparency"s).value(), 0, 255));
+  SetLayeredWindowAttributes(gHWndIndicator, 0, transparency, LWA_ALPHA);
+
+  // create main window
+  HWND hWndMain = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
+                                  ClassNameMain,
+                                  WindowNameMain,
+                                  WS_POPUP,
+                                  CW_USEDEFAULT,
+                                  CW_USEDEFAULT,
+                                  CW_USEDEFAULT,
+                                  CW_USEDEFAULT,
+                                  NULL,
+                                  NULL,
+                                  hInstance,
+                                  NULL);
+  if (hWndMain == NULL) {
     const std::wstring message =
       L"Initialization error: CreateWindowExW failed with code "s + std::to_wstring(GetLastError());
     MessageBoxW(NULL, message.c_str(), L"MuteApp", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
@@ -352,14 +421,11 @@ int WINAPI wWinMain(HINSTANCE hInstance,
 
   SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
-  SetLayeredWindowAttributes(
-    hWnd, 0, static_cast<BYTE>(std::clamp(configFile.GetInt(L"indicatorTransparency"s).value(), 0, 255)), LWA_ALPHA);
-
   // register notify icon
   gNotifyIcon.emplace(
     NOTIFYICONDATAW{
       sizeof(NOTIFYICONDATAW),
-      hWnd,
+      hWndMain,
       NotifyIconId,
       NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP,
       NotifyIconCallbackMessageId,
@@ -383,7 +449,8 @@ int WINAPI wWinMain(HINSTANCE hInstance,
     const std::wstring message =
       L"Initialization error: Failed to register notify icon (code "s + std::to_wstring(GetLastError()) + L")"s;
     MessageBoxW(NULL, message.c_str(), L"MuteApp", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
-    DestroyWindow(hWnd);
+    DestroyWindow(hWndMain);
+    DestroyWindow(gHWndIndicator);
     return 1;
   }
 
@@ -393,10 +460,11 @@ int WINAPI wWinMain(HINSTANCE hInstance,
     ReleaseMutex(hMutex);
     MessageBoxW(
       NULL, L"Initialization error: Failed to parse hotkey", L"MuteApp", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
-    DestroyWindow(hWnd);
+    DestroyWindow(hWndMain);
+    DestroyWindow(gHWndIndicator);
     return 1;
   }
-  if (RegisterHotKey(hWnd,
+  if (RegisterHotKey(hWndMain,
                      HotKeyId,
                      (hotKey.alt ? MOD_ALT : 0) | (hotKey.control ? MOD_CONTROL : 0) | (hotKey.shift ? MOD_SHIFT : 0) |
                        (hotKey.win ? MOD_WIN : 0) | (configFile.GetInt(L"hotkeyRepeat"s).value() ? 0 : MOD_NOREPEAT),
@@ -405,7 +473,8 @@ int WINAPI wWinMain(HINSTANCE hInstance,
     const std::wstring message =
       L"Initialization error: Failed to register hotkey (code "s + std::to_wstring(GetLastError()) + L")"s;
     MessageBoxW(NULL, message.c_str(), L"MuteApp", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
-    DestroyWindow(hWnd);
+    DestroyWindow(hWndMain);
+    DestroyWindow(gHWndIndicator);
     return 1;
   }
 
@@ -413,13 +482,15 @@ int WINAPI wWinMain(HINSTANCE hInstance,
   MSG msg;
   BOOL gmResult;
   while (true) {
-    gmResult = GetMessageW(&msg, hWnd, 0, 0);
+    gmResult = GetMessageW(&msg, hWndMain, 0, 0);
     if (gmResult == 0 || gmResult == -1) {
       break;
     }
     TranslateMessage(&msg);
     DispatchMessageW(&msg);
   }
+
+  DestroyWindow(gHWndIndicator);
 
   ReleaseMutex(hMutex);
 
