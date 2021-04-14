@@ -23,6 +23,24 @@
 using namespace std::literals;
 
 namespace {
+  namespace Config {
+    namespace Key {
+      constexpr auto HotKey = L"hotkey";
+      constexpr auto HotKeyRepeat = L"hotkeyRepeat";
+      constexpr auto IndicatorDuration = L"indicatorDuration";
+      constexpr auto IndicatorSize = L"indicatorSize";
+      constexpr auto IndicatorTransparency = L"indicatorTransparency";
+    } // namespace Key
+
+    namespace Default {
+      constexpr auto HotKey = L"Ctrl+Shift+F8";
+      constexpr auto HotKeyRepeat = 0;
+      constexpr auto IndicatorDuration = 1000;
+      constexpr auto IndicatorSize = 200;
+      constexpr auto IndicatorTransparency = 200;
+    } // namespace Default
+  } // namespace Config
+
   constexpr std::size_t PathBufferSize = 65600;
   constexpr std::size_t MenuPathLength = 32;
   constexpr auto MutexName = L"MuteAppMutex";
@@ -51,7 +69,7 @@ namespace {
     auto buffer = std::make_unique<wchar_t[]>(BufferSize);
     GetModuleFileNameW(hModule, buffer.get(), BufferSize);
     if (GetLastError() != ERROR_SUCCESS) {
-      throw std::system_error(std::error_code(GetLastError(), std::system_category()), "GetModukeFileNameW failed");
+      throw std::system_error(std::error_code(GetLastError(), std::system_category()), "GetModuleFileNameW failed");
     }
 
     return std::wstring(buffer.get());
@@ -91,25 +109,26 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         break;
       }
 
-      DWORD pid;
+      DWORD pid = 0;
       GetWindowThreadProcessId(hForegroundWnd, &pid);
       if (pid == 0) {
         MessageBeep(MB_OK);
         break;
       }
 
-      bool muted;
       try {
-        muted = !ToggleMuteByProcessId(pid);
-        gMuted = muted;
+        gMuted = !ToggleMuteByProcessId(pid);
       } catch (...) {
         MessageBeep(MB_OK);
         break;
       }
 
-      const auto duration = gConfigFile.value().GetInt(L"indicatorDuration").value();
-      const auto baseSize = gConfigFile.value().GetInt(L"indicatorSize").value();
-      const auto transparency = gConfigFile.value().GetInt(L"indicatorTransparency").value();
+      const auto duration =
+        gConfigFile.value().GetInt(Config::Key::IndicatorDuration).value_or(Config::Default::IndicatorDuration);
+      const auto baseSize =
+        gConfigFile.value().GetInt(Config::Key::IndicatorSize).value_or(Config::Default::IndicatorSize);
+      const auto transparency =
+        gConfigFile.value().GetInt(Config::Key::IndicatorTransparency).value_or(Config::Default::IndicatorTransparency);
 
       if (duration <= 0 || baseSize <= 0 || transparency <= 0) {
         break;
@@ -121,6 +140,7 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
       const LONG cx = (rect.left + rect.right) / 2;
       const LONG cy = (rect.top + rect.bottom) / 2;
 
+      // using MonitorFromRect and GetDpiForMonitor is better maybe
       SetWindowPos(hWnd, NULL, cx, cy, 1, 1, SWP_HIDEWINDOW);
       const auto dpi = GetDpiForWindow(hWnd);
 
@@ -316,11 +336,11 @@ int WINAPI wWinMain(HINSTANCE hInstance,
   gConfigFile.emplace(configFilepath);
 
   auto& configFile = gConfigFile.value();
-  configFile.Set(L"hotkey"s, L"Ctrl+Shift+F8"s, true);
-  configFile.Set(L"hotkeyRepeat"s, 0, true);
-  configFile.Set(L"indicatorDuration"s, 1000, true);
-  configFile.Set(L"indicatorSize"s, 200, true);
-  configFile.Set(L"indicatorTransparency"s, 200, true);
+  configFile.Set(Config::Key::HotKey, Config::Default::HotKey, true);
+  configFile.Set(Config::Key::HotKeyRepeat, Config::Default::HotKeyRepeat, true);
+  configFile.Set(Config::Key::IndicatorDuration, Config::Default::IndicatorDuration, true);
+  configFile.Set(Config::Key::IndicatorSize, Config::Default::IndicatorSize, true);
+  configFile.Set(Config::Key::IndicatorTransparency, Config::Default::IndicatorTransparency, true);
   configFile.Save();
 
   // open icon
