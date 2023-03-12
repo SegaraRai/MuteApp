@@ -20,7 +20,7 @@ jobs:
 
       - run: cmake --preset default
 
-      - run: cmake --build --preset default --config Release
+      - run: cmake --build --preset Release
 
       - name: Package
         run: |
