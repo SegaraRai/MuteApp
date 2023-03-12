@@ -25,7 +25,7 @@ jobs:
       - name: Package
         run: |
           mkdir dist
-          7z a dist/MuteApp.zip builds/Release/MuteApp.exe
+          7z a dist/MuteApp.zip ./builds/Release/MuteApp.exe
 
       - name: Release
         uses: softprops/action-gh-release@v1
