@@ -13,7 +13,7 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// ƒjƒ…[ƒgƒ‰ƒ‹ (Šù’è) resources
+// ãƒ‹ãƒ¥ãƒ¼ãƒˆãƒ©ãƒ« (æ—¢å®š) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_NEUD)
 LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
@@ -28,12 +28,12 @@ LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
 // remains consistent on all systems.
 IDI_ICON1               ICON                    "Icon.ico"
 
-#endif    // ƒjƒ…[ƒgƒ‰ƒ‹ (Šù’è) resources
+#endif    // ãƒ‹ãƒ¥ãƒ¼ãƒˆãƒ©ãƒ« (æ—¢å®š) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
 /////////////////////////////////////////////////////////////////////////////
-// “ú–{Œê (“ú–{) resources
+// æ—¥æœ¬èª (æ—¥æœ¬) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
 LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
@@ -45,18 +45,18 @@ LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
 // TEXTINCLUDE
 //
 
-1 TEXTINCLUDE 
+1 TEXTINCLUDE
 BEGIN
     "resource.h\0"
 END
 
-2 TEXTINCLUDE 
+2 TEXTINCLUDE
 BEGIN
     "#include ""winres.h""\r\n"
     "\0"
 END
 
-3 TEXTINCLUDE 
+3 TEXTINCLUDE
 BEGIN
     "\r\n"
     "\0"
@@ -64,12 +64,12 @@ END
 
 #endif    // APSTUDIO_INVOKED
 
-#endif    // “ú–{Œê (“ú–{) resources
+#endif    // æ—¥æœ¬èª (æ—¥æœ¬) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
 /////////////////////////////////////////////////////////////////////////////
-// ‰pŒê (•Ä‘) resources
+// è‹±èª (ç±³å›½) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
@@ -127,7 +127,7 @@ BEGIN
     END
 END
 
-#endif    // ‰pŒê (•Ä‘) resources
+#endif    // è‹±èª (ç±³å›½) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
