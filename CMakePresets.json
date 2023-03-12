@@ -11,23 +11,34 @@
       "displayName": "Default (Ninja Multi-Config)",
       "binaryDir": "${sourceDir}/builds",
       "generator": "Ninja Multi-Config"
+    },
+    {
+      "name": "default-Debug",
+      "inherits": "default"
+    },
+    {
+      "name": "default-RelWithDebInfo",
+      "inherits": "default"
     }
   ],
   "buildPresets": [
     {
       "name": "Debug",
       "displayName": "Debug",
-      "configurePreset": "default"
+      "configuration": "Debug",
+      "configurePreset": "default-Debug"
     },
     {
       "name": "Release",
       "displayName": "Release",
+      "configuration": "Release",
       "configurePreset": "default"
     },
     {
       "name": "RelWithDebInfo",
       "displayName": "RelWithDebInfo",
-      "configurePreset": "default"
+      "configuration": "RelWithDebInfo",
+      "configurePreset": "default-RelWithDebInfo"
     }
   ]
 }
