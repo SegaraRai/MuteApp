@@ -13,6 +13,7 @@ namespace {
   std::vector<winrt::com_ptr<IAudioSessionControl2>> GetAudioSessionControls(DWORD processId) {
     std::vector<winrt::com_ptr<IAudioSessionControl2>> sessions;
 
+    // enumerate active audio endpoint devices for rendering (playback)
     auto mmDevEnum = winrt::create_instance<IMMDeviceEnumerator>(__uuidof(MMDeviceEnumerator), CLSCTX_ALL);
     winrt::com_ptr<IMMDeviceCollection> mmDevColl;
     winrt::check_hresult(mmDevEnum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, mmDevColl.put()));
@@ -38,12 +39,14 @@ namespace {
 
         auto audioSessCtrl2 = audioSessCtrl.as<IAudioSessionControl2>();
 
+        // ignore expired sessions
         AudioSessionState audioSessState;
         winrt::check_hresult(audioSessCtrl2->GetState(&audioSessState));
         if (audioSessState == AudioSessionStateExpired) {
           continue;
         }
 
+        // ignore system sounds session
         {
           const auto hr = audioSessCtrl2->IsSystemSoundsSession();
           winrt::check_hresult(hr);
@@ -52,6 +55,7 @@ namespace {
           }
         }
 
+        // filter by process id (if specified)
         if (processId != 0) {
           DWORD pid;
           winrt::check_hresult(audioSessCtrl2->GetProcessId(&pid));
@@ -79,16 +83,25 @@ bool ToggleMuteByProcessId(DWORD processId) {
   if (sessions.empty()) {
     throw ToggleMuteError(ToggleMuteError::ErrorCode::NoAudioSessions);
   }
-  if (sessions.size() > 1) {
-    throw ToggleMuteError(ToggleMuteError::ErrorCode::TooManyAudioSessions);
+
+  // get mute state
+  // if any session is not muted, then mute all sessions
+  bool muted = true;
+  for (const auto& session : sessions) {
+    BOOL sessionMuted = FALSE;
+    auto simpleAudioVolume = session.as<ISimpleAudioVolume>();
+    winrt::check_hresult(simpleAudioVolume->GetMute(&sessionMuted));
+    if (!sessionMuted) {
+      muted = false;
+      break;
+    }
   }
 
-  const auto session = sessions[0];
-  auto simpleAudioVolume = session.as<ISimpleAudioVolume>();
+  // toggle mute
+  for (const auto& session : sessions) {
+    auto simpleAudioVolume = session.as<ISimpleAudioVolume>();
+    winrt::check_hresult(simpleAudioVolume->SetMute(muted ? FALSE : TRUE, NULL));
+  }
 
-  BOOL mute = FALSE;
-  winrt::check_hresult(simpleAudioVolume->GetMute(&mute));
-  winrt::check_hresult(simpleAudioVolume->SetMute(mute ? FALSE : TRUE, NULL));
-
-  return mute;
+  return muted;
 }
