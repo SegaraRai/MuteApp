@@ -6,8 +6,9 @@ on:
     tags:
       - "v*"
 jobs:
-  check-bats-version:
+  build:
     runs-on: windows-2022
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
         with:
