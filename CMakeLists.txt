@@ -19,6 +19,7 @@ add_executable(MuteApp WIN32
   src/HotKey.cpp
   src/Main.cpp
   src/NotifyIcon.cpp
+  src/MuteApp.manifest
   src/MuteApp.rc
 )
 
