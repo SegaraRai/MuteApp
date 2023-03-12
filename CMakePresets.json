@@ -1,0 +1,33 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default (Ninja Multi-Config)",
+      "binaryDir": "${sourceDir}/builds",
+      "generator": "Ninja Multi-Config"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "Debug",
+      "displayName": "Debug",
+      "configurePreset": "default"
+    },
+    {
+      "name": "Release",
+      "displayName": "Release",
+      "configurePreset": "default"
+    },
+    {
+      "name": "RelWithDebInfo",
+      "displayName": "RelWithDebInfo",
+      "configurePreset": "default"
+    }
+  ]
+}
