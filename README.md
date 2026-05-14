@@ -1,54 +1,55 @@
 # MuteApp
 
-ホットキーを押下して任意のアプリをミュート/ミュート解除できます。
+Mute or unmute the focused application with a global hotkey.
 
-![動作画面](https://user-images.githubusercontent.com/29276700/115992195-55d5f800-a607-11eb-9096-bb18a7054be5.gif)
+![Demo](https://user-images.githubusercontent.com/29276700/115992195-55d5f800-a607-11eb-9096-bb18a7054be5.gif)
 
-## 使い方
+## Usage
 
-[Releases](https://github.com/SegaraRai/MuteApp/releases)からダウンロードして、実行します。
+Download the latest build from [Releases](https://github.com/SegaraRai/MuteApp/releases) and run `MuteApp.exe`.
 
-ミュートを設定/解除したいアプリにフォーカスを移してホットキー（規定では<kbd>Ctrl+Shift+F8</kbd>）を押下すると、ミュートが設定または解除されます。
+Focus the application you want to mute or unmute, then press the hotkey. The default hotkey is <kbd>Ctrl+Shift+F8</kbd>.
 
-通知エリアから終了できます。
+MuteApp runs in the notification area. Use the tray menu to quit the app.
 
-スタートアップに登録しておくと便利です。
+For regular use, add MuteApp to your startup apps.
 
-## ビルド
+## Build
 
-Rust 1.95以降をインストールして、以下を実行します。
+Install Rust 1.95 or later, then run:
 
 ```powershell
 cargo build --release
 ```
 
-生成物は `target/release/MuteApp.exe` です。
+The executable is generated at `target/release/MuteApp.exe`.
 
-## 既知の不具合
+## Configuration
 
-### 一部のアプリで動作しない
+MuteApp creates `MuteApp.cfg` next to the executable. The available settings are:
 
-本アプリはフォアグラウンドウィンドウのプロセスに対応するオーディオセッションを取得し、ミュート/ミュート解除を行います。  
-そのため、一部のマルチプロセスアプリケーションでは動作しないことがあります。
+| Key                             | Default       | Description                                      |
+| ------------------------------- | ------------- | ------------------------------------------------ |
+| hotkey                          | Ctrl+Shift+F8 | Global hotkey used to toggle mute                |
+| indicatorDuration               | 1000          | Overlay duration in milliseconds; `0` disables it |
+| indicatorSize                   | 240           | Overlay size in pixels; `0` disables it          |
+| indicatorTransparency           | 200           | Overlay background opacity from `0` to `255`     |
+| indicatorForegroundTransparency | 255           | Overlay icon opacity from `0` to `255`           |
 
-現在確認している未対応のアプリは以下の通りです。
+## Known Limitations
 
-- Google Chrome等Chromium系のアプリ
+### Some applications may not work
 
-### OSやアプリの再起動後もミュート設定が残る
+MuteApp looks up the audio session for the process that owns the foreground window, then toggles that session's mute state.
 
-[Windowsの仕様](https://docs.microsoft.com/en-us/windows/win32/api/audioclient/nn-audioclient-isimpleaudiovolume)です。
+Some multi-process applications may play audio from a different process than the focused window. In those cases, MuteApp may not be able to toggle the expected audio session.
 
-MuteAppまたはOS標準の音量ミキサーから再設定してください。
+Known unsupported applications:
 
-## 設定ファイル
+- Google Chrome and other Chromium-based apps
 
-アプリの設定ファイルに記述される項目を以下に記します。
+### Mute state can persist after restarting apps or Windows
 
-| キー                            | 既定値        | 値の意味                                             |
-| ------------------------------- | ------------- | ---------------------------------------------------- |
-| hotkey                          | Ctrl+Shift+F8 | ホットキー                                           |
-| indicatorDuration               | 1000          | インジケータの表示時間（ミリ秒）、0 で表示しない     |
-| indicatorSize                   | 240           | インジケータの大きさ（px）、0 で表示しない           |
-| indicatorTransparency           | 200           | インジケータ背景の不透明度（0 ～ 255）               |
-| indicatorForegroundTransparency | 255           | インジケータアイコンの不透明度（0 ～ 255）           |
+This is standard Windows audio session behavior. See [`ISimpleAudioVolume`](https://learn.microsoft.com/windows/win32/api/audioclient/nn-audioclient-isimpleaudiovolume).
+
+Use MuteApp again, or use the Windows volume mixer, to change the mute state.
