@@ -1,6 +1,6 @@
 [package]
 name = "muteapp"
-version = "2.0.0-beta"
+version = "2.0.0"
 edition = "2024"
 description = "Mute or unmute the foreground application with a global hotkey."
 build = "build.rs"
