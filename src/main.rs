@@ -55,7 +55,7 @@ fn run() -> Result<()> {
 
     win::ensure_message_queue();
     let main_thread_id = win::current_thread_id();
-    let _ctrl_c = install_ctrl_c_handler(main_thread_id);
+    install_ctrl_c_handler(main_thread_id)?;
 
     let hotkey_manager = GlobalHotKeyManager::new().context("failed to create hotkey manager")?;
     hotkey_manager

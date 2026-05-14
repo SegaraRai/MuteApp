@@ -17,20 +17,27 @@ pub struct IndicatorState {
 }
 
 pub fn render_indicator_rgba(size: u32, state: IndicatorState) -> Vec<u8> {
-    let mut frame = vec![0; (size * size * 4) as usize];
+    let mut frame = vec![0; frame_len(size)];
     draw_indicator(&mut frame, size, state);
     frame
 }
 
 #[cfg(not(windows))]
 pub fn render_tray_icon_rgba(size: u32) -> Vec<u8> {
-    let mut frame = vec![0; (size * size * 4) as usize];
+    let mut frame = vec![0; frame_len(size)];
     let Some(mut pixmap) = PixmapMut::from_bytes(&mut frame, size, size) else {
         return frame;
     };
     draw_svg_icon(&mut pixmap, size as f32, false);
     unpremultiply_frame(&mut frame);
     frame
+}
+
+fn frame_len(size: u32) -> usize {
+    (size as usize)
+        .checked_mul(size as usize)
+        .and_then(|pixels| pixels.checked_mul(4))
+        .expect("indicator image size overflows usize")
 }
 
 fn draw_indicator(frame: &mut [u8], size: u32, state: IndicatorState) {

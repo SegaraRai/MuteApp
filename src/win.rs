@@ -2,8 +2,8 @@ use anyhow::{Context, Result, bail};
 use std::ffi::c_void;
 use std::time::Instant;
 use windows::Win32::Foundation::{
-    COLORREF, CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, HWND, LPARAM, POINT, RECT,
-    SIZE, WPARAM,
+    COLORREF, CloseHandle, ERROR_ALREADY_EXISTS, ERROR_CLASS_ALREADY_EXISTS, GetLastError, HANDLE,
+    HWND, LPARAM, POINT, RECT, SIZE, WPARAM,
 };
 use windows::Win32::Graphics::Gdi::{
     AC_SRC_ALPHA, AC_SRC_OVER, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BLENDFUNCTION,
@@ -12,7 +12,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize};
 use windows::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
-use windows::Win32::System::Diagnostics::Debug::MessageBeep;
+use windows::Win32::System::Diagnostics::Debug::{MessageBeep, OutputDebugStringW};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::{CreateMutexW, GetCurrentThreadId, ReleaseMutex};
 use windows::Win32::UI::HiDpi::{
@@ -210,14 +210,9 @@ impl OverlayWindow {
                     hold_duration_ms: u64::from(duration_ms),
                     started_at: Instant::now(),
                 });
-                SetTimer(
-                    Some(self.hwnd),
-                    ANIMATION_TIMER_ID,
-                    ANIMATION_FRAME_MS,
-                    None,
-                );
+                self.set_timer_or_hide(ANIMATION_TIMER_ID, ANIMATION_FRAME_MS)?;
             } else {
-                SetTimer(Some(self.hwnd), HIDE_TIMER_ID, duration_ms, None);
+                self.set_timer_or_hide(HIDE_TIMER_ID, duration_ms)?;
             }
         }
         Ok(())
@@ -272,6 +267,19 @@ impl OverlayWindow {
             Some(animation) if !animation.is_finished(now) => animation.progress(now),
             _ => self.current_progress,
         }
+    }
+
+    fn set_timer_or_hide(&mut self, timer_id: usize, elapsed_ms: u32) -> Result<()> {
+        let result = unsafe { SetTimer(Some(self.hwnd), timer_id, elapsed_ms, None) };
+        if result != 0 {
+            return Ok(());
+        }
+        debug_log(&format!(
+            "SetTimer failed hwnd={:?} timer_id={timer_id}",
+            self.hwnd
+        ));
+        self.hide();
+        bail!("failed to create overlay timer {timer_id}");
     }
 }
 
@@ -448,9 +456,20 @@ fn register_window_class(class_name: PCWSTR) -> Result<()> {
     };
     let atom = unsafe { RegisterClassExW(&class) };
     if atom == 0 {
-        bail!("failed to register overlay window class");
+        let error = unsafe { GetLastError() };
+        if error == ERROR_CLASS_ALREADY_EXISTS {
+            return Ok(());
+        }
+        bail!("failed to register overlay window class: {error:?}");
     }
     Ok(())
+}
+
+fn debug_log(message: &str) {
+    let wide_message = message.encode_utf16().chain([0]).collect::<Vec<_>>();
+    unsafe {
+        OutputDebugStringW(PCWSTR(wide_message.as_ptr()));
+    }
 }
 
 fn module_instance() -> Result<windows::Win32::Foundation::HINSTANCE> {
@@ -496,7 +515,15 @@ fn update_layered_window(
     if hdc.0.is_null() {
         bail!("failed to create memory DC");
     }
-    let bitmap = DibBitmap::new(size, &bgra)?;
+    let bitmap = match DibBitmap::new(size, &bgra) {
+        Ok(bitmap) => bitmap,
+        Err(err) => {
+            unsafe {
+                let _ = DeleteDC(hdc);
+            }
+            return Err(err);
+        }
+    };
     let old_object = unsafe { SelectObject(hdc, HGDIOBJ(bitmap.handle.0)) };
 
     let dst = POINT {

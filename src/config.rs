@@ -4,7 +4,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Shift+F8";
-pub const DEFAULT_HOTKEY_REPEAT: i32 = 0;
 pub const DEFAULT_INDICATOR_DURATION: i32 = 1000;
 pub const DEFAULT_INDICATOR_SIZE: i32 = 240;
 pub const DEFAULT_INDICATOR_TRANSPARENCY: i32 = 200;
@@ -23,9 +22,8 @@ impl Config {
             path,
             values: BTreeMap::new(),
         };
-        config.load();
+        config.load()?;
         config.set_default("hotkey", DEFAULT_HOTKEY);
-        config.set_default("hotkeyRepeat", DEFAULT_HOTKEY_REPEAT.to_string());
         config.set_default("indicatorDuration", DEFAULT_INDICATOR_DURATION.to_string());
         config.set_default("indicatorSize", DEFAULT_INDICATOR_SIZE.to_string());
         config.set_default(
@@ -40,10 +38,18 @@ impl Config {
         Ok(config)
     }
 
-    fn load(&mut self) {
-        let Ok(contents) = fs::read_to_string(&self.path) else {
-            return;
+    fn load(&mut self) -> io::Result<()> {
+        let bytes = match fs::read(&self.path) {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(err),
         };
+        let contents = String::from_utf8(bytes).map_err(|err| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("configuration file is not valid UTF-8: {err}"),
+            )
+        })?;
 
         for line in contents.lines() {
             let Some((key, value)) = line.split_once('=') else {
@@ -56,6 +62,7 @@ impl Config {
             self.values
                 .insert(key.to_string(), value.trim_start().to_string());
         }
+        Ok(())
     }
 
     pub fn save(&self) -> io::Result<()> {
